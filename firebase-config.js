@@ -19,6 +19,7 @@ import {
   collection,
   query,
   orderBy,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // Firebase configuration – replace the placeholders with your project's configuration
@@ -57,4 +58,5 @@ export {
   query,
   orderBy,
   serverTimestamp,
+  deleteDoc,
 };
