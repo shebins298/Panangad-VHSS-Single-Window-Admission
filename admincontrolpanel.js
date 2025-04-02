@@ -1,6 +1,6 @@
 // admincontrolpanel.js
 
-import { auth, db, collection, getDocs, doc, updateDoc, deleteDoc, onAuthStateChanged } from "./firebase-config.js";
+import { auth, db, collection, getDocs, getDoc, updateDoc, deleteDoc, onAuthStateChanged } from "./firebase-config.js";
 
 const dashboardStats = document.getElementById("dashboard-stats");
 const userList = document.getElementById("user-list");
