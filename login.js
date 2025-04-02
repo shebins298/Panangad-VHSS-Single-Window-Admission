@@ -15,20 +15,21 @@ import {
 const googleLoginButton = document.getElementById("googleLogin");
 const loginContainer = document.getElementById("login-container");
 
+const provider = new GoogleAuthProvider();
+
+// ✅ Handle Login Process
 const googleLogin = async () => {
-  googleLoginButton.disabled = true; // Disable button during login
+  googleLoginButton.disabled = true; // Prevent multiple clicks
   loginContainer.style.display = "none"; // Hide login container to prevent flicker
 
-  const provider = new GoogleAuthProvider();
-
   try {
-    if (window.innerWidth <= 768) {
-      // 🔥 Mobile: Use redirect
+    if (/Mobi|Android/i.test(navigator.userAgent)) {
+      // ✅ Use Redirect on Mobile
       await signInWithRedirect(auth, provider);
     } else {
-      // 🔥 Desktop: Use popup
+      // ✅ Use Popup on Desktop
       const result = await signInWithPopup(auth, provider);
-      await handleLogin(result.user);
+      await handleUserLogin(result.user);
     }
   } catch (error) {
     console.error("Login Error:", error);
@@ -39,49 +40,49 @@ const googleLogin = async () => {
   }
 };
 
-// ✅ Handle Login Result (after Redirect)
-const handleLogin = async (user) => {
-  if (!user) return;
+// ✅ Handle Redirect Login (for mobile users)
+const checkRedirectLogin = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      await handleUserLogin(result.user);
+    }
+  } catch (error) {
+    console.error("Redirect Login Error:", error);
+  }
+};
 
+// ✅ Handle User Login & Role Checking
+const handleUserLogin = async (user) => {
   const userRef = doc(db, "users", user.uid);
   const userDoc = await getDoc(userRef);
 
   if (!userDoc.exists()) {
-    // Save new user email
     await setDoc(userRef, { email: user.email }, { merge: true });
-
-    loginContainer.style.display = "block"; // Show login again
     alert("Login request sent to admin. Please wait for approval.");
     await signOut(auth);
+    loginContainer.style.display = "block"; // Show login again
     return;
   }
 
   const userData = userDoc.data();
-
   if (!userData.role) {
-    loginContainer.style.display = "block"; // Show login again
     alert("Your account is not approved yet. Please contact the admin.");
     await signOut(auth);
+    loginContainer.style.display = "block"; // Show login again
     return;
   }
 
-  // Redirect user based on role
+  // ✅ Redirect to the correct page
   window.location.href = userData.role === "admin" ? "admin.html" : "user.html";
 };
 
-// ✅ Check Redirect Result
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    // Handle Redirect Login (if user is coming back)
-    try {
-      const result = await getRedirectResult(auth);
-      if (result && result.user) {
-        await handleLogin(result.user);
-      }
-    } catch (error) {
-      console.error("Redirect login error:", error);
-    }
+// ✅ Check if user is already logged in
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    handleUserLogin(user);
   }
 });
 
 googleLoginButton.addEventListener("click", googleLogin);
+checkRedirectLogin(); // ✅ Check for mobile redirect login
