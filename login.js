@@ -1,66 +1,38 @@
 import {
   auth,
   db,
-  GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
+  GoogleAuthProvider,
   signOut,
   doc,
   getDoc,
   setDoc,
-  setPersistence,
-  browserSessionPersistence,
 } from "./firebase-config.js";
 
 const googleLoginButton = document.getElementById("googleLogin");
 const loginContainer = document.getElementById("login-container");
 
-// Ensure session persistence
-setPersistence(auth, browserSessionPersistence)
-  .then(() => console.log("Session persistence enabled"))
-  .catch((error) => console.error("Persistence Error:", error));
-
 const googleLogin = async () => {
-  googleLoginButton.disabled = true;
+  googleLoginButton.disabled = true; // Disable button during login to prevent multiple clicks
+  const provider = new GoogleAuthProvider();
+
+  //Hides the Lgin Container to prevent flicker
   loginContainer.style.display = "none";
 
   try {
-    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
 
-    if (window.innerWidth < 768) {
-      // 📱 Use Redirect for Mobile
-      await signInWithRedirect(auth, provider);
-    } else {
-      // 💻 Use Popup for Desktop
-      const result = await signInWithPopup(auth, provider);
-      await handleUserLogin(result.user);
-    }
-  } catch (error) {
-    console.error("Login Error:", error);
-    alert("Login failed. Please try again.");
-    loginContainer.style.display = "block";
-  } finally {
-    googleLoginButton.disabled = false;
-  }
-};
-
-// Handle login after redirect (for mobile users)
-getRedirectResult(auth)
-  .then((result) => {
-    if (result && result.user) {
-      handleUserLogin(result.user);
-    }
-  })
-  .catch((error) => console.error("Redirect Login Error:", error));
-
-const handleUserLogin = async (user) => {
-  try {
     const userRef = doc(db, "users", user.uid);
     const userDoc = await getDoc(userRef);
 
     if (!userDoc.exists()) {
+      // Save the user's Gmail ID to the user document
       await setDoc(userRef, { email: user.email }, { merge: true });
+
+      //show login again
+      loginContainer.style.display = "block"; // Makes it visible again
+
       alert("Login request sent to admin. Please wait for approval.");
       await signOut(auth);
       return;
@@ -68,16 +40,25 @@ const handleUserLogin = async (user) => {
 
     const userData = userDoc.data();
 
+    // If the admin hasn't assigned a role yet, deny access
     if (!userData.role) {
+      //show login again
+      loginContainer.style.display = "block"; // Makes it visible again
       alert("Your account is not approved yet. Please contact the admin.");
       await signOut(auth);
       return;
     }
 
-    window.location.href = userData.role === "admin" ? "admin.html" : "user.html";
+    // Redirect user based on role
+    window.location.href =
+      userData.role === "admin" ? "admin.html" : "user.html";
   } catch (error) {
-    console.error("User Handling Error:", error);
-    alert("Something went wrong. Try again.");
+    //show login again
+    loginContainer.style.display = "block"; // Makes it visible again
+    console.error("Login Error:", error);
+    alert("Login failed. Please try again.");
+  } finally {
+    googleLoginButton.disabled = false; // Re-enable button after login attempt
   }
 };
 
