@@ -1,88 +1,84 @@
 import {
   auth,
   db,
+  GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
-  GoogleAuthProvider,
   signOut,
   doc,
   getDoc,
   setDoc,
-  onAuthStateChanged,
+  setPersistence,
+  browserSessionPersistence,
 } from "./firebase-config.js";
 
 const googleLoginButton = document.getElementById("googleLogin");
 const loginContainer = document.getElementById("login-container");
 
-const provider = new GoogleAuthProvider();
+// Ensure session persistence
+setPersistence(auth, browserSessionPersistence)
+  .then(() => console.log("Session persistence enabled"))
+  .catch((error) => console.error("Persistence Error:", error));
 
-// ✅ Handle Login Process
 const googleLogin = async () => {
-  googleLoginButton.disabled = true; // Prevent multiple clicks
-  loginContainer.style.display = "none"; // Hide login container to prevent flicker
+  googleLoginButton.disabled = true;
+  loginContainer.style.display = "none";
 
   try {
-    if (/Mobi|Android/i.test(navigator.userAgent)) {
-      // ✅ Use Redirect on Mobile
+    const provider = new GoogleAuthProvider();
+
+    if (window.innerWidth < 768) {
+      // 📱 Use Redirect for Mobile
       await signInWithRedirect(auth, provider);
     } else {
-      // ✅ Use Popup on Desktop
+      // 💻 Use Popup for Desktop
       const result = await signInWithPopup(auth, provider);
       await handleUserLogin(result.user);
     }
   } catch (error) {
     console.error("Login Error:", error);
     alert("Login failed. Please try again.");
-    loginContainer.style.display = "block"; // Show login again
+    loginContainer.style.display = "block";
   } finally {
-    googleLoginButton.disabled = false; // Re-enable button
+    googleLoginButton.disabled = false;
   }
 };
 
-// ✅ Handle Redirect Login (for mobile users)
-const checkRedirectLogin = async () => {
-  try {
-    const result = await getRedirectResult(auth);
+// Handle login after redirect (for mobile users)
+getRedirectResult(auth)
+  .then((result) => {
     if (result && result.user) {
-      await handleUserLogin(result.user);
+      handleUserLogin(result.user);
     }
-  } catch (error) {
-    console.error("Redirect Login Error:", error);
-  }
-};
+  })
+  .catch((error) => console.error("Redirect Login Error:", error));
 
-// ✅ Handle User Login & Role Checking
 const handleUserLogin = async (user) => {
-  const userRef = doc(db, "users", user.uid);
-  const userDoc = await getDoc(userRef);
+  try {
+    const userRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userRef);
 
-  if (!userDoc.exists()) {
-    await setDoc(userRef, { email: user.email }, { merge: true });
-    alert("Login request sent to admin. Please wait for approval.");
-    await signOut(auth);
-    loginContainer.style.display = "block"; // Show login again
-    return;
+    if (!userDoc.exists()) {
+      await setDoc(userRef, { email: user.email }, { merge: true });
+      alert("Login request sent to admin. Please wait for approval.");
+      await signOut(auth);
+      return;
+    }
+
+    const userData = userDoc.data();
+
+    if (!userData.role) {
+      alert("Your account is not approved yet. Please contact the admin.");
+      await signOut(auth);
+      return;
+    }
+
+    window.location.href = userData.role === "admin" ? "admin.html" : "user.html";
+  } catch (error) {
+    console.error("User Handling Error:", error);
+    alert("Something went wrong. Try again.");
   }
-
-  const userData = userDoc.data();
-  if (!userData.role) {
-    alert("Your account is not approved yet. Please contact the admin.");
-    await signOut(auth);
-    loginContainer.style.display = "block"; // Show login again
-    return;
-  }
-
-  // ✅ Redirect to the correct page
-  window.location.href = userData.role === "admin" ? "admin.html" : "user.html";
 };
-
-// ✅ Check if user is already logged in
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    handleUserLogin(user);
-  }
-});
 
 googleLoginButton.addEventListener("click", googleLogin);
-checkRedirectLogin(); // ✅ Check for mobile redirect login
